@@ -1,10 +1,12 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 import os
 import sys
 import asyncio
 import psycopg2
+from psycopg2.pool import ThreadedConnectionPool
 import logging
+import atexit
 
 # Scraper imports
 from Ambition_scrape import AmbitionBoxScraper
@@ -19,8 +21,9 @@ if sys.platform.startswith("win"):
 load_dotenv()
 URL = os.environ.get("BASE_URL")
 
-# Flask app and blueprint setup
-app= Flask(__name__)
+# Flask app setup
+app = Flask(__name__)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -32,17 +35,30 @@ PG_DBNAME = "bluerang_test_master_db"
 PG_USER = "bluerangZbEbusr"
 PG_PASSWORD = "Year#2015eba"
 
+# PostgreSQL connection pool
+db_pool = ThreadedConnectionPool(
+    minconn=2,
+    maxconn=10,
+    user=PG_USER,
+    password=PG_PASSWORD,
+    host=PG_HOST,
+    port=PG_PORT,
+    database=PG_DBNAME
+)
+
+# Close DB pool on shutdown
+@atexit.register
+def close_db_pool():
+    if db_pool:
+        db_pool.closeall()
+        logger.info("Database pool closed.")
+
+# Helper to get a DB connection
 def get_db_connection():
     try:
-        return psycopg2.connect(
-            dbname=PG_DBNAME,
-            user=PG_USER,
-            password=PG_PASSWORD,
-            host=PG_HOST,
-            port=PG_PORT
-        )
+        return db_pool.getconn()
     except Exception as e:
-        logger.error(f"Error connecting to database: {e}")
+        logger.error(f"Error getting connection from pool: {e}")
         return None
 
 @app.route("/scrape", methods=["POST"])
@@ -55,27 +71,26 @@ def scrape():
     try:
         with conn:
             with conn.cursor() as cur:
-                # Only fetch companies where at least one platform is not scraped
+                # Fetch companies where at least one platform is not scraped
                 cur.execute("""
-                    SELECT company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirms_scrap
+                    SELECT company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirm_scrap
                     FROM company
                     WHERE LOWER(COALESCE(clutch_scrap, '')) != 'true'
                        OR LOWER(COALESCE(ambitionbox_scrap, '')) != 'true'
-                       OR LOWER(COALESCE(goodfirms_scrap, '')) != 'true'
+                       OR LOWER(COALESCE(goodfirm_scrap, '')) != 'true'
                 """)
                 rows = cur.fetchall()
-                for company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirms_scrap in rows:
+                for company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirm_scrap in rows:
                     if reviews_urls:
                         for source in reviews_urls:
                             src = source.get('source')
                             link = source.get('link')
-                            # Use only DB columns for flag checks (as strings, case-insensitive)
                             if src and link:
                                 if src == "clutch" and str(clutch_scrap).lower() != 'true':
                                     ClutchScraper().run(url=link, company_id=company_id, company_name=company_name)
                                 elif src == "ambitionbox" and str(ambitionbox_scrap).lower() != 'true':
                                     AmbitionBoxScraper().run(url=link, company_id=company_id, company_name=company_name)
-                                elif src == "goodfirms" and str(goodfirms_scrap).lower() != 'true':
+                                elif src == "goodfirm" and str(goodfirm_scrap).lower() != 'true':
                                     GoodFirmsScraper().run(url=link, company_id=company_id, company_name=company_name)
                                 else:
                                     logger.info(f"Source '{src}' already scraped for company '{company_name}'")
@@ -84,7 +99,7 @@ def scrape():
         logger.error(f"Error during scraping: {e}")
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        db_pool.putconn(conn)
 
 def fetch_company_reviews(company_slug, source):
     """Fetch reviews for a company and source."""
@@ -122,7 +137,7 @@ def fetch_company_reviews(company_slug, source):
         logger.error(f"Error fetching reviews: {e}")
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        db_pool.putconn(conn)
 
 @app.route('/clutch-reviews/<company_slug>', methods=['GET'])
 def get_clutch_reviews(company_slug):
