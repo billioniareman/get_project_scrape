@@ -73,14 +73,14 @@ def scrape():
             with conn.cursor() as cur:
                 # Fetch companies where at least one platform is not scraped
                 cur.execute("""
-                    SELECT company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirm_scrap
+                    SELECT company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirms_scrap
                     FROM company
                     WHERE LOWER(COALESCE(clutch_scrap, '')) != 'true'
                        OR LOWER(COALESCE(ambitionbox_scrap, '')) != 'true'
-                       OR LOWER(COALESCE(goodfirm_scrap, '')) != 'true'
+                       OR LOWER(COALESCE(goodfirms_scrap, '')) != 'true'
                 """)
                 rows = cur.fetchall()
-                for company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirm_scrap in rows:
+                for company_id, company_name, reviews_urls, clutch_scrap, ambitionbox_scrap, goodfirms_scrap in rows:
                     if reviews_urls:
                         for source in reviews_urls:
                             src = source.get('source')
@@ -90,7 +90,7 @@ def scrape():
                                     ClutchScraper().run(url=link, company_id=company_id, company_name=company_name)
                                 elif src == "ambitionbox" and str(ambitionbox_scrap).lower() != 'true':
                                     AmbitionBoxScraper().run(url=link, company_id=company_id, company_name=company_name)
-                                elif src == "goodfirm" and str(goodfirm_scrap).lower() != 'true':
+                                elif src == "goodfirms" and str(goodfirms_scrap).lower() != 'true':
                                     GoodFirmsScraper().run(url=link, company_id=company_id, company_name=company_name)
                                 else:
                                     logger.info(f"Source '{src}' already scraped for company '{company_name}'")
@@ -100,56 +100,6 @@ def scrape():
         return jsonify({'error': str(e)}), 500
     finally:
         db_pool.putconn(conn)
-
-def fetch_company_reviews(company_slug, source):
-    """Fetch reviews for a company and source."""
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT company_id, company_name FROM company WHERE company_slug_name = %s",
-                    (company_slug,)
-                )
-                company = cur.fetchone()
-                if not company:
-                    return jsonify({'error': 'Company not found'}), 404
-                company_id, company_name = company
-
-                cur.execute(
-                    """SELECT company_review_id, designation, last_scraped, review_date, review_text, 
-                              reviewer_name, source, source_url, user_rating
-                       FROM company_reviews
-                       WHERE company_id = %s AND source = %s""",
-                    (company_id, source)
-                )
-                rows = cur.fetchall()
-                columns = [desc[0] for desc in cur.description]
-                reviews = [dict(zip(columns, row)) for row in rows]
-                return jsonify({
-                    'company_id': company_id,
-                    'company_name': company_name,
-                    'reviews': reviews
-                })
-    except Exception as e:
-        logger.error(f"Error fetching reviews: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        db_pool.putconn(conn)
-
-@app.route('/clutch-reviews/<company_slug>', methods=['GET'])
-def get_clutch_reviews(company_slug):
-    return fetch_company_reviews(company_slug, 'clutch')
-
-@app.route('/ambitionbox-reviews/<company_slug>', methods=['GET'])
-def get_ambitionbox_reviews(company_slug):
-    return fetch_company_reviews(company_slug, 'ambitionbox')
-
-@app.route('/goodfirms-reviews/<company_slug>', methods=['GET'])
-def get_goodfirms_reviews(company_slug):
-    return fetch_company_reviews(company_slug, 'goodfirms')
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
