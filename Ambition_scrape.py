@@ -200,7 +200,7 @@ class AmbitionBoxScraper:
             cur = conn.cursor()
             cur.execute("""
                 update company
-                set ambitionbox_reviews = %s, ambitionbox_scraped = true
+                set ambitionbox_reviews = %s, ambitionbox_scrap = true
                 where company_id = %s
             """, (platform_rating, company_id))
             for review in reviews:
