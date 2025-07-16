@@ -119,75 +119,33 @@ class GoodFirmsScraper:
         if self.driver:
             self.driver.quit()
 
-    def save_to_database(self, company_id, company_name, source, source_url, platform_rating, reviews):
-        PG_HOST = "ss-stag-dev-db-paij5iezee.supersourcing.com"
-        PG_PORT = 5432
-        PG_DBNAME = "bluerang_test_master_db"
-        PG_USER = "bluerangZbEbusr"
-        PG_PASSWORD = "Year#2015eba"
-        try:
-            conn = psycopg2.connect(
-                dbname=PG_DBNAME,
-                user=PG_USER,
-                password=PG_PASSWORD,
-                host=PG_HOST,
-                port=PG_PORT
-            )
-            cur = conn.cursor()
-            
-            cur.execute("""
-                update company
-                set goodfirm_reviews = %s, goodfirm_scrap = true 
-                where company_id = %s
-            """, (platform_rating, company_id))
-            for review in reviews:
-                cur.execute("""
-                    INSERT INTO company_reviews (
-                        company_id, company_name, source, source_url, 
-                        reviewer_name, designation, review_text, user_rating, review_date, last_scraped
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                """, (
-                    company_id,
-                    company_name,
-                    source,
-                    source_url,
-                    review.get('name'),
-                    review.get('designation'),
-                    review.get('text'),
-                    review.get('user_rating'),
-                    review.get('date')
-                ))
-            conn.commit()
-            print(f":floppy_disk: Saved {len(reviews)} reviews to the company_review table.")
-            cur.close()
-            conn.close()
-        except Exception as e:
-            print(f":x: Error saving to database: {e}")
-
     def run(self, url, company_id, company_name):
         driver = self.driver
         if not driver:
             print(":x: Failed to setup WebDriver")
-            return
+            return None
         try:
             reviews = self.scrape_all_pages(url)
+            platform_rating = self.get_overall_rating()
             if reviews:
-                self.save_to_database(
-                    company_id=company_id,
-                    company_name=company_name,
-                    source="goodfirms",
-                    source_url=url,
-                    platform_rating=self.get_overall_rating(),
-                    reviews=reviews
-                )
+                result = {
+                    "company_id": company_id,
+                    "company_name": company_name,
+                    "source": "goodfirms",
+                    "source_url": url,
+                    "platform_rating": platform_rating,
+                    "reviews": reviews
+                }
                 print(f"\n:bar_chart: Summary:")
                 print(f"   Total reviews: {len(reviews)}")
-                print(f"   Output: Saved to company_review table")
-                # print(f"   Overall rating: {platform_rating}")
+                print(f"   Output: Returning scraped data")
+                return result
             else:
                 print(":x: No reviews found")
+                return None
         except Exception as e:
             print(f":x: Error during scraping: {e}")
+            return None
         finally:
             self.close()
             print(":end: WebDriver closed")
