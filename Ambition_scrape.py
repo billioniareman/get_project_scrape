@@ -53,6 +53,7 @@ class AmbitionBoxScraper:
         for element in review_elements:
             review_data = {}
             try:
+                
                 likes_elem = element.find_element(By.XPATH, ".//h3[text()='Likes']/following-sibling::p[1]")
                 likes_text = likes_elem.text.strip()
             except NoSuchElementException:

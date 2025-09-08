@@ -28,9 +28,6 @@ class GoodFirmsScraper:
         review_elements = driver.find_elements(By.CSS_SELECTOR, 'article.profile-review')
         if not review_elements:
             print(":x: No reviews found on this page.")
-            with open("goodfirms_debug.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            print("Saved HTML to goodfirms_debug.html for inspection.")
         for element in review_elements:
             review_data = {}
             try:
