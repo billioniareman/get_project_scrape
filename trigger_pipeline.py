@@ -7,11 +7,10 @@ log = logging.getLogger("pg-listener")
 
 DB_HOST = os.getenv("PGHOST", "ss-stag-dev-db-paij5iezee.supersourcing.com")
 DB_PORT = int(os.getenv("PGPORT", "5432"))
-DB_NAME = os.getenv("PGDATABASE", "bluerang_test_master_db")
+DB_NAME = os.getenv("PGDATABASE", "getproject_staging")
 DB_USER = os.getenv("PGUSER", "bluerangZbEbusr")
 DB_PASS = os.getenv("PGPASSWORD", "Year#2015eba")
-CHANNEL = os.getenv("PG_CHANNEL", "company_reviews_ready")
-
+CHANNEL = os.getenv("PG_CHANNEL", "notify_company_reviews_ready")
 FLASK_HOST = os.getenv("FLASK_HOST", "localhost")
 FLASK_PORT = int(os.getenv("FLASK_PORT", "4200"))
 API_URL = os.getenv("SCRAPE_URL", f"http://{FLASK_HOST}:{FLASK_PORT}/scrape")

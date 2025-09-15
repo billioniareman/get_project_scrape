@@ -21,7 +21,8 @@ logger = logging.getLogger("scrape-server")
 # -------------------------
 NODE_HOST = os.getenv("NODE_HOST", "localhost")
 NODE_PORT = int(os.getenv("NODE_PORT", "3000"))
-NODE_BASE = f"http://{NODE_HOST}:{NODE_PORT}"
+NODE_BASE = f"https://staging-api.getprojects.ai"
+
 
 GET_COMPANY_API = f"{NODE_BASE}/api/v2/getCompanyDataForReviewScrap"
 SAVE_REVIEWS_API = f"{NODE_BASE}/api/v2/save-company-reviews"
